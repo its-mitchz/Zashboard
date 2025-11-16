@@ -1,0 +1,258 @@
+:root {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  background-color: #020617;
+  color: #e5e7eb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(circle at top, #1f2937 0, #020617 55%);
+}
+
+button {
+  font-family: inherit;
+}
+
+/* Shell layout */
+.shell {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  height: 100vh;
+  background: #050814;
+  color: #f4f5fb;
+}
+
+/* sidebar */
+.sidebar {
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 1rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0 0.5rem 0.25rem;
+}
+
+.logo-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #4c6fff, #3bd9ff);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.title-block .title {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.title-block .subtitle {
+  font-size: 0.7rem;
+  opacity: 0.6;
+}
+
+.nav {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.nav button {
+  all: unset;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.75rem;
+  font-size: 0.85rem;
+  opacity: 0.7;
+  transition: 0.15s ease background, 0.15s ease opacity, 0.15s ease transform;
+}
+
+.nav button .icon {
+  font-size: 1rem;
+}
+
+.nav button.selected {
+  opacity: 1;
+  background: linear-gradient(
+    90deg,
+    rgba(76, 111, 255, 0.35),
+    rgba(59, 217, 255, 0.12)
+  );
+  transform: translateX(2px);
+}
+
+.nav button:hover:not(.selected) {
+  opacity: 0.9;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* main */
+.main {
+  padding: 1rem 1.25rem;
+  overflow: auto;
+}
+
+.main-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.main-title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.main-title h1 {
+  margin: 0;
+  font-size: 1.4rem;
+  letter-spacing: 0.02em;
+}
+
+.main-title small {
+  color: #9ca3af;
+  font-size: 0.8rem;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+/* light cards */
+.light-card {
+  border-radius: 0.9rem;
+  padding: 1rem;
+  background: radial-gradient(circle at top left, #020617 0, #020617 55%, #020617 100%);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.light-card.on {
+  box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.55),
+    0 18px 45px rgba(250, 204, 21, 0.25);
+  background: radial-gradient(circle at top left, #facc15 0, #eab308 20%, #451a03 100%);
+}
+
+.light-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.light-title-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.light-name {
+  font-weight: 600;
+}
+
+.light-entity {
+  font-size: 0.72rem;
+  color: #9ca3af;
+}
+
+.light-title-right {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.badge {
+  font-size: 0.7rem;
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.badge.state-on {
+  background: rgba(15, 23, 42, 0.15);
+  color: #0f172a;
+  border-color: transparent;
+}
+
+.badge.state-off {
+  background: rgba(15, 23, 42, 0.8);
+  color: #e5e7eb;
+}
+
+.light-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.2rem;
+}
+
+.light-actions button {
+  flex: 1;
+  border-radius: 999px;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.85rem;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.9);
+  color: #e5e7eb;
+}
+
+.light-actions button.primary {
+  border-color: transparent;
+  background: rgba(15, 23, 42, 0.12);
+  color: #0f172a;
+}
+
+.light-card.on .light-actions button.primary {
+  background: rgba(15, 23, 42, 0.8);
+  color: #e5e7eb;
+}
+
+/* misc */
+.loading,
+.error,
+.info {
+  padding: 1.5rem;
+  font-size: 0.95rem;
+}
+
+.error {
+  color: #fecaca;
+}

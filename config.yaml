@@ -1,0 +1,21 @@
+name: "Svelte Lights Dashboard"
+version: "0.6.1"
+slug: "svelte_lights_dashboard"
+description: "Svelte-based Home Assistant dashboard using websockets and YAML layouts."
+url: "https://example.com"
+arch:
+  - amd64
+  - aarch64
+startup: services
+boot: auto
+ingress: true
+ingress_port: 8099
+panel_icon: mdi:lightbulb-group
+panel_title: "Svelte Lights"
+homeassistant_api: true
+hassio_api: true
+init: false
+
+# No user configuration – URL & tokens handled automatically by HA auth flow
+options: {}
+schema: {}
