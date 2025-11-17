@@ -182,7 +182,7 @@ app.post("/api/dashboard", (req: Request, res: Response) => {
   res.json({ success: true });
 });
 
-const staticDir = path.join(__dirname, "web", "dist");
+const staticDir = path.resolve(__dirname, "../web/dist");
 app.use(express.static(staticDir));
 
 app.get(/.*/, (_req: Request, res: Response) => {
