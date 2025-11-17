@@ -1,70 +1,84 @@
 <script>
-  import { derived } from "svelte/store";
-  import LightCard from "../components/LightCard.svelte";
-  import { states, haCallService } from "../ha/connection";
+  import { cards, updateCardPosition } from "../../stores/dashboard";
+  import EditToolbar from "../components/EditToolbar.svelte";
+  import DraggableCard from "../components/DraggableCard.svelte";
+  import DashboardLightCard from "../components/DashboardLightCard.svelte";
 
   export let currentView;
-
-  $: sections = currentView?.sections ?? [];
-
-  const lightsStore = derived(states, ($states) => {
-    const all = Object.values($states || {});
-    const lights = all.filter((e) => e && e.entity_id && e.entity_id.startsWith("light."));
-    const byId = {};
-    for (const e of lights) {
-      byId[e.entity_id] = e;
-    }
-    return { list: lights, byId };
-  });
-
-  let lightsList = [];
-  let lightsById = {};
-
-  $: {
-    const val = $lightsStore;
-    lightsList = val.list;
-    lightsById = val.byId;
-  }
-
-  function lightsForSection(section) {
-    if (section.auto_domain === "light") {
-      return lightsList;
-    }
-    if (Array.isArray(section.cards)) {
-      const out = [];
-      for (const card of section.cards) {
-        if (card.type === "light" && card.entity_id && lightsById[card.entity_id]) {
-          out.push(lightsById[card.entity_id]);
-        }
-      }
-      return out;
-    }
-    return [];
-  }
-
-  function toggle(light) {
-    haCallService("light", "toggle", { entity_id: light.entity_id });
-  }
 </script>
 
-<div class="lights-view">
-  {#if !sections.length}
-    <p style="padding: 1rem;">No sections defined for this view.</p>
-  {:else}
-    {#each sections as section}
-      <section class="section">
-        <header class="main-header">
-          <div class="main-title">
-            <h1>{section.title}</h1>
-          </div>
-        </header>
+<div class="lights-root">
+  <EditToolbar />
 
-        <div class="card-grid">
-          {#each lightsForSection(section) as light (light.entity_id)}
-            <LightCard {light} on:toggle={() => toggle(light)} />
-          {/each}
-        </div>
-      </section>
+  <div class="canvas">
+    {#if $cards.length === 0}
+      <div class="empty-state">
+        <h2>{currentView?.title ?? "Lights"}</h2>
+        <p>
+          Turn on <strong>Edit dashboard</strong> and add your first light card
+          using the menu above.
+        </p>
+      </div>
+    {/if}
+
+    {#each $cards as card (card.id)}
+      {#if card.type === "light"}
+        <DraggableCard
+          id={card.id}
+          x={card.x}
+          y={card.y}
+          width={card.width}
+          height={card.height}
+          onMove={updateCardPosition}
+        >
+          <div slot="header">
+            {currentView?.title ?? "Lights"}
+          </div>
+
+          <DashboardLightCard {card} />
+        </DraggableCard>
+      {/if}
     {/each}
-  {/if}
+  </div>
 </div>
+
+<style>
+  .lights-root {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: radial-gradient(circle at top, #1d1d29, #050509);
+    color: #f5f5f5;
+  }
+
+  .canvas {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+
+  .empty-state {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    max-width: 420px;
+    padding: 1.5rem 1.75rem;
+    border-radius: 18px;
+    background: rgba(10, 10, 16, 0.92);
+    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.7);
+  }
+
+  .empty-state h2 {
+    margin: 0 0 0.5rem;
+    font-size: 1.3rem;
+  }
+
+  .empty-state p {
+    margin: 0;
+    font-size: 0.9rem;
+    opacity: 0.85;
+  }
+</style>
