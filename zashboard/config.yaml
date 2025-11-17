@@ -1,5 +1,5 @@
 name: "Zashboard"
-version: "0.6.45"
+version: "0.6.5"
 slug: "zashboard"
 description: "Svelte-based Home Assistant dashboard using websockets and YAML layouts."
 url: "https://example.com"
