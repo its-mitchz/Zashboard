@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from "svelte";
+  import Icon from "@iconify/svelte";
   import type { DashboardRoom } from "../types/dashboard";
 
   export let open = false;
@@ -24,6 +25,8 @@
   function createButton(roomId: string) {
     dispatch("create", { roomId, type: "button" });
   }
+
+  const hasIcon = (value?: string | null) => Boolean(value && value.includes(":"));
 </script>
 
 {#if open}
@@ -41,7 +44,13 @@
         {#each rooms as room}
           <article class:selected={room.id === activeRoomId}>
             <div class="room-meta">
-              <span class="icon">{room.icon ?? room.title.slice(0, 1)}</span>
+              <span class="icon">
+                {#if hasIcon(room.icon)}
+                  <Icon icon={room.icon} inline />
+                {:else}
+                  {room.icon ?? room.title.slice(0, 1)}
+                {/if}
+              </span>
               <div>
                 <h3>{room.title}</h3>
                 {#if room.description}
@@ -149,6 +158,11 @@
     display: grid;
     place-items: center;
     font-size: 1.3rem;
+  }
+
+  .room-meta .icon :global(svg) {
+    width: 1.3rem;
+    height: 1.3rem;
   }
 
   .room-meta h3 {

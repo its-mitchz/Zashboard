@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from "svelte";
+  import Icon from "@iconify/svelte";
   import type { DashboardButtonObject } from "../types/dashboard";
   import { states } from "../ha/connection";
   import { haCallService } from "../ha/connection";
@@ -8,6 +9,7 @@
   export let editMode = false;
 
   const dispatch = createEventDispatcher<{ edit: void }>();
+  const hasIcon = (value?: string | null) => Boolean(value && value.includes(":"));
 
   $: entity = object.entity ? $states?.[object.entity] : null;
   $: isOn = entity?.state === "on";
@@ -30,7 +32,13 @@
 >
   <button type="button" on:click={handleClick}>
     <div class="top-row">
-      <span class="icon">{object.icon ?? "BTN"}</span>
+      <span class="icon">
+        {#if hasIcon(object.icon)}
+          <Icon icon={object.icon} inline />
+        {:else}
+          {object.icon ?? "BTN"}
+        {/if}
+      </span>
       <span class="name">{object.name}</span>
     </div>
     {#if object.showInfo}
@@ -100,6 +108,14 @@
 
   .icon {
     font-size: 1.7rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .icon :global(svg) {
+    width: 1.7rem;
+    height: 1.7rem;
   }
 
   .name {
