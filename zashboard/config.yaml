@@ -1,6 +1,6 @@
-name: "Svelte Lights Dashboard"
+name: "Zashboard"
 version: "0.6.1"
-slug: "svelte_lights_dashboard"
+slug: "zashboard"
 description: "Svelte-based Home Assistant dashboard using websockets and YAML layouts."
 url: "https://example.com"
 arch:
@@ -10,8 +10,8 @@ startup: services
 boot: auto
 ingress: true
 ingress_port: 8099
-panel_icon: mdi:lightbulb-group
-panel_title: "Svelte Lights"
+panel_icon: mdi:alpha-z-circle-outline
+panel_title: "Zashboard"
 homeassistant_api: true
 hassio_api: true
 init: false

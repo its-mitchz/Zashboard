@@ -1,6 +1,6 @@
 {
-  "name": "ha-svelte-lights-dashboard",
-  "version": "0.6.0",
+  "name": "ha-zashboard",
+  "version": "0.6.1",
   "private": true,
   "type": "module",
   "scripts": {
