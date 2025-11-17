@@ -20,7 +20,7 @@ function isIngress() {
   }
 }
 
-function isRemoteNabuCasa() {
+function isNabuCasa() {
   try {
     return window.location.hostname.endsWith(".ui.nabu.casa");
   } catch {
@@ -55,18 +55,13 @@ function findHassConnectionPromise() {
   return null;
 }
 
-async function getConnectionFromHaAncestors() {
+async function getConnectionFromHaFrontend() {
   const promise = findHassConnectionPromise();
   if (!promise) return null;
 
-  try {
-    const hc = await promise;
-    // In newer HA, hassConnection resolves to { conn, auth }
-    return hc.conn ?? hc;
-  } catch (err) {
-    console.warn("[Zashboard] hassConnection promise rejected:", err);
-    return null;
-  }
+  const hc = await promise;
+  // In modern HA, hassConnection resolves to { conn, auth }
+  return hc.conn ?? hc;
 }
 
 export async function initHaConnection() {
@@ -76,7 +71,7 @@ export async function initHaConnection() {
   connectionError.set(null);
 
   const ingress = isIngress();
-  const remote = isRemoteNabuCasa();
+  const remote = isNabuCasa();
 
   try {
     // ─────────────────────────────────────────────────────────────
@@ -85,16 +80,12 @@ export async function initHaConnection() {
     if (ingress || remote) {
       console.log("[Zashboard] Running in ingress / remote UI mode");
 
-      const conn = await getConnectionFromHaAncestors();
+      const conn = await getConnectionFromHaFrontend();
       if (!conn) {
-        console.error(
-          "[Zashboard] Could not access hassConnection from HA frontend; " +
-            "cannot connect without starting our own auth flow (which we avoid in ingress)."
-        );
         connectionStatus.set("error");
         connectionError.set(
-          "Zashboard could not reuse the existing Home Assistant connection. " +
-            "Try opening Home Assistant via your local/internal URL instead of Nabu Casa remote."
+          "Zashboard couldn't access the existing Home Assistant connection. " +
+            "Make sure you're opening Zashboard from inside the Home Assistant UI."
         );
         return;
       }
