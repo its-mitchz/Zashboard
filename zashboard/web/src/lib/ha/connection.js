@@ -4,7 +4,7 @@ import {
   subscribeEntities,
   callService,
   ERR_HASS_HOST_REQUIRED,
-  getAuth
+  getAuth,
 } from "home-assistant-js-websocket";
 
 export const connection = writable(null);
@@ -12,37 +12,61 @@ export const states = writable({});
 export const connectionStatus = writable("idle");
 export const connectionError = writable(null);
 
-function inHomeAssistantIframe() {
+function isIngress() {
   try {
-    return window.parent && window.parent !== window;
+    return window.location.pathname.includes("/api/hassio_ingress");
   } catch {
     return false;
   }
 }
 
-async function getConnectionFromHa() {
-  // Try to reuse Home Assistant's existing connection.
-  // This is what we want for an add-on / panel.
+function isRemoteNabuCasa() {
   try {
-    // If we're running in an ingress/panel iframe,
-    // the parent should have hassConnection.
-    if (inHomeAssistantIframe() && window.parent.hassConnection) {
-      console.log("[Zashboard] Using parent.hassConnection");
-      const hc = await window.parent.hassConnection;
-      return hc.conn ?? hc;
+    return window.location.hostname.endsWith(".ui.nabu.casa");
+  } catch {
+    return false;
+  }
+}
+
+function findHassConnectionPromise() {
+  // Walk up the window hierarchy and look for hassConnection
+  const visited = new Set();
+  let win = window;
+
+  for (let i = 0; i < 10; i++) {
+    if (!win || visited.has(win)) break;
+    visited.add(win);
+
+    try {
+      if (win.hassConnection) {
+        console.log("[Zashboard] Found hassConnection on window level", i);
+        return win.hassConnection;
+      }
+    } catch (err) {
+      // cross-origin; ignore and break
+      console.warn("[Zashboard] Error probing window level", i, err);
+      break;
     }
 
-    // Fallback: maybe the HA frontend injected hassConnection on window
-    if (window.hassConnection) {
-      console.log("[Zashboard] Using window.hassConnection");
-      const hc = await window.hassConnection;
-      return hc.conn ?? hc;
-    }
-  } catch (err) {
-    console.warn("[Zashboard] Failed to reuse hassConnection:", err);
+    if (!win.parent || win.parent === win) break;
+    win = win.parent;
   }
 
   return null;
+}
+
+async function getConnectionFromHaAncestors() {
+  const promise = findHassConnectionPromise();
+  if (!promise) return null;
+
+  try {
+    const hc = await promise;
+    // In newer HA, hassConnection resolves to { conn, auth }
+    return hc.conn ?? hc;
+  } catch (err) {
+    console.warn("[Zashboard] hassConnection promise rejected:", err);
+    return null;
+  }
 }
 
 export async function initHaConnection() {
@@ -51,33 +75,54 @@ export async function initHaConnection() {
   connectionStatus.set("connecting");
   connectionError.set(null);
 
+  const ingress = isIngress();
+  const remote = isRemoteNabuCasa();
+
   try {
-    // ----- PRIMARY PATH: running as HA add-on / panel -----
-    const reuseConn = await getConnectionFromHa();
-    if (reuseConn) {
-      connection.set(reuseConn);
+    // ─────────────────────────────────────────────────────────────
+    // PRIMARY PATH: Add-on / Ingress / Nabu Casa
+    // ─────────────────────────────────────────────────────────────
+    if (ingress || remote) {
+      console.log("[Zashboard] Running in ingress / remote UI mode");
+
+      const conn = await getConnectionFromHaAncestors();
+      if (!conn) {
+        console.error(
+          "[Zashboard] Could not access hassConnection from HA frontend; " +
+            "cannot connect without starting our own auth flow (which we avoid in ingress)."
+        );
+        connectionStatus.set("error");
+        connectionError.set(
+          "Zashboard could not reuse the existing Home Assistant connection. " +
+            "Try opening Home Assistant via your local/internal URL instead of Nabu Casa remote."
+        );
+        return;
+      }
+
+      connection.set(conn);
       connectionStatus.set("connected");
 
-      subscribeEntities(reuseConn, (entities) => {
+      subscribeEntities(conn, (entities) => {
         states.set(entities || {});
       });
 
-      reuseConn.addEventListener?.("disconnected", () => {
+      conn.addEventListener?.("disconnected", () => {
         connectionStatus.set("disconnected");
       });
 
       return; // IMPORTANT: do not fall through to getAuth()
     }
 
-    // ----- DEV/STANDALONE PATH: only used for npm run dev -----
-    console.log("[Zashboard] No hassConnection found; using getAuth() dev flow");
+    // ─────────────────────────────────────────────────────────────
+    // DEV/STANDALONE PATH: ONLY outside ingress / Nabu Casa
+    // ─────────────────────────────────────────────────────────────
+    console.log("[Zashboard] Not in ingress/remote; using getAuth() dev flow");
 
     let auth;
     try {
-      auth = await getAuth(); // uses current URL
+      auth = await getAuth(); // uses current URL as redirectUri
     } catch (err) {
       if (err === ERR_HASS_HOST_REQUIRED) {
-        // derive hassUrl from current origin
         const url = new URL(window.location.href);
         const hassUrl = `${url.protocol}//${url.host}`;
         auth = await getAuth({ hassUrl });
@@ -113,7 +158,11 @@ export async function haCallService(domain, service, data) {
   unsub();
 
   if (!currentConn) {
-    console.warn("[Zashboard] No HA connection yet, cannot call service", domain, service);
+    console.warn(
+      "[Zashboard] No HA connection yet, cannot call service",
+      domain,
+      service
+    );
     return;
   }
 
