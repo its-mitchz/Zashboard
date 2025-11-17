@@ -1,109 +1,169 @@
-<script>
+<script lang="ts">
   import { onMount } from "svelte";
   import Shell from "./lib/components/Shell.svelte";
-  import PopupModal from "./lib/components/PopupModal.svelte";
-  import LightsView from "./lib/views/LightsView.svelte";
-  import SettingsView from "./lib/views/SettingsView.svelte";
-  import { getDashboard } from "./lib/api/dashboard";
-  import { connectionStatus, connectionError } from "./lib/ha/connection";
+  import DraggableCard from "./lib/components/DraggableCard.svelte";
+  import ButtonObject from "./lib/components/ButtonObject.svelte";
+  import ObjectEditorModal from "./lib/components/ObjectEditorModal.svelte";
+  import AddObjectMenu from "./lib/components/AddObjectMenu.svelte";
+  import {
+    rooms,
+    sidebar,
+    activeRoom,
+    activeRoomId,
+    editMode,
+    editingObject,
+    loadDashboardState,
+    setActiveRoom,
+    toggleEditMode,
+    startCreatingObject,
+    startEditingObject,
+    saveEditingObject,
+    cancelEditingObject,
+    removeObject,
+    updateObjectPosition
+  } from "./stores/dashboard";
+  import {
+    initHaConnection,
+    connectionStatus,
+    connectionError
+  } from "./lib/ha/connection";
+  import type { DashboardButtonObject } from "./lib/types/dashboard";
 
-  let dashboard = null;
-  let loading = true;
-  let error = null;
-  let activePopupId = null;
+  let addMenuOpen = false;
 
-  $: views = dashboard?.views ?? [];
-  $: popupView = views.find((v) => v.id === activePopupId);
+  onMount(() => {
+    loadDashboardState();
+    initHaConnection();
+  });
 
-  $: status = $connectionStatus;
+  $: currentRoom = $activeRoom;
+  $: currentEditing = $editingObject;
+  $: connectionState = $connectionStatus;
   $: wsError = $connectionError;
 
-  onMount(async () => {
-    try {
-      const dash = await getDashboard();
-      dashboard = dash;
+  function handleMove(event: CustomEvent<{ id: string; x: number; y: number }>, objectId: string) {
+    if (!currentRoom) return;
+    updateObjectPosition(currentRoom.id, objectId, event.detail.x, event.detail.y);
+  }
 
-      if (!dash?.views?.length) {
-        activePopupId = null;
-      }
-    } catch (e) {
-      console.error(e);
-      error = e?.message ?? String(e);
-    } finally {
-      loading = false;
+  function openEditor(objectId: string) {
+    if (!currentRoom) return;
+    startEditingObject(currentRoom.id, objectId);
+  }
+
+  function handleSave(event: CustomEvent<DashboardButtonObject>) {
+    if (!currentEditing) return;
+    saveEditingObject({
+      roomId: currentEditing.roomId,
+      object: event.detail,
+      isNew: currentEditing.isNew
+    });
+  }
+
+  function handleRemove() {
+    if (!currentEditing) return;
+    removeObject(currentEditing.roomId, currentEditing.object.id);
+  }
+
+  function handleCreate(event: CustomEvent<{ roomId: string; type: "button" }>) {
+    addMenuOpen = false;
+    const { roomId, type } = event.detail;
+    startCreatingObject(roomId, type);
+    if ($activeRoomId !== roomId) {
+      setActiveRoom(roomId);
     }
-  });
+  }
 </script>
 
-{#if loading}
-  <div class="loading">Loading dashboard...</div>
-{:else if error}
-  <div class="error">Error: {error}</div>
-{:else if views.length === 0}
-  <div class="error">No views defined in dashboard.yaml</div>
-{:else}
-  <Shell
-    {views}
-    on:openView={(event) => (activePopupId = event.detail)}
-  >
-    {#if status !== "connected"}
-      <div class="info">
-        {#if status === "connecting"}
-          Connecting to Home Assistant...
-        {:else if status === "error"}
-          Failed to connect to Home Assistant.<br />
-          {#if wsError}{wsError}{/if}
-        {:else}
-          Waiting for Home Assistant connection...
-        {/if}
+<Shell
+  {connectionState}
+  connectionMessage={wsError ?? ""}
+  editMode={$editMode}
+  rooms={$rooms}
+  sidebar={$sidebar}
+  activeRoomId={$activeRoomId}
+  on:selectRoom={(event) => setActiveRoom(event.detail)}
+  on:toggleEdit={() => toggleEditMode()}
+  on:addObject={() => (addMenuOpen = true)}
+>
+  <div class="canvas-wrapper">
+    {#if currentRoom}
+      {#if currentRoom.objects.length === 0}
+        <div class="empty-state">
+          <h2>{currentRoom.title}</h2>
+          <p>
+            {#if $editMode}
+              Use <strong>Add object</strong> to place your first control in this room.
+            {:else}
+              No objects yet. Enable edit mode to start customizing this room.
+            {/if}
+          </p>
+        </div>
+      {/if}
+
+      {#each currentRoom.objects as object (object.id)}
+        <DraggableCard
+          id={object.id}
+          x={object.x}
+          y={object.y}
+          width={object.width}
+          height={object.height}
+          on:move={(event) => handleMove(event, object.id)}
+        >
+          <ButtonObject
+            object={object}
+            editMode={$editMode}
+            on:edit={() => openEditor(object.id)}
+          />
+        </DraggableCard>
+      {/each}
+    {:else}
+      <div class="empty-state">
+        <h2>No rooms defined</h2>
+        <p>Update your dashboard configuration to add rooms.</p>
       </div>
     {/if}
+  </div>
+</Shell>
 
-    {#if activePopupId && popupView}
-      <PopupModal title={popupView.title} on:close={() => (activePopupId = null)}>
-        {#if activePopupId === "lights"}
-          <LightsView currentView={popupView} />
-        {:else if activePopupId === "settings"}
-          <SettingsView />
-        {:else}
-          <div class="placeholder-view">
-            <p>View "{popupView.title}" is not implemented yet in the frontend.</p>
-          </div>
-        {/if}
-      </PopupModal>
-    {/if}
-  </Shell>
-{/if}
+<ObjectEditorModal
+  editing={currentEditing}
+  on:close={cancelEditingObject}
+  on:save={handleSave}
+  on:remove={handleRemove}
+/>
+
+<AddObjectMenu
+  open={addMenuOpen}
+  rooms={$rooms}
+  activeRoomId={$activeRoomId}
+  on:close={() => (addMenuOpen = false)}
+  on:create={handleCreate}
+/>
 
 <style>
-  .loading,
-  .error {
-    display: grid;
-    place-items: center;
-    height: 100vh;
+  :global(body) {
+    margin: 0;
+    font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+    background: #05050b;
     color: #f5f5f5;
-    font-size: 1.1rem;
-    background: radial-gradient(circle at top, #141422, #050509);
-    text-align: center;
-    padding: 1.5rem;
   }
 
-  .info {
+  .canvas-wrapper {
+    position: relative;
+    min-height: 600px;
+  }
+
+  .empty-state {
     position: absolute;
-    bottom: 1.5rem;
+    top: 50%;
     left: 50%;
-    transform: translateX(-50%);
-    padding: 0.75rem 1.25rem;
-    border-radius: 999px;
-    background: rgba(0, 0, 0, 0.55);
-    color: #f5f5f5;
-    font-size: 0.85rem;
+    transform: translate(-50%, -50%);
     text-align: center;
-    backdrop-filter: blur(10px);
-    max-width: min(90%, 420px);
-  }
-
-  .placeholder-view {
-    padding: 1rem;
+    max-width: 320px;
+    background: rgba(0, 0, 0, 0.4);
+    padding: 1.5rem;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
   }
 </style>

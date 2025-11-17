@@ -10,7 +10,7 @@ WORKDIR /app
 
 # Copy add-on files
 COPY run.sh /run.sh
-COPY server.js /app/server.js
+COPY package.json tsconfig.server.json server.ts /app/
 COPY web /app/web
 
 # Build Svelte frontend
@@ -18,9 +18,10 @@ RUN cd /app/web \
     && npm install \
     && npm run build
 
-# Backend deps just for serving static files + YAML config
+# Install backend deps and compile TypeScript server
 RUN cd /app \
-    && npm install express body-parser js-yaml
+    && npm install \
+    && npm run build
 
 RUN chmod a+x /run.sh
 

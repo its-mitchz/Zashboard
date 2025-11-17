@@ -1,18 +1,22 @@
-import { writable } from "svelte/store";
+import { writable, type Writable } from "svelte/store";
 import {
-  createConnection,
-  subscribeEntities,
   callService,
+  createConnection,
   ERR_HASS_HOST_REQUIRED,
   getAuth,
+  subscribeEntities,
+  type Connection,
+  type HassEntities
 } from "home-assistant-js-websocket";
 
-export const connection = writable(null);
-export const states = writable({});
-export const connectionStatus = writable("idle");
-export const connectionError = writable(null);
+type ConnectionStatus = "idle" | "connecting" | "connected" | "disconnected" | "error";
 
-function isIngress() {
+export const connection: Writable<Connection | null> = writable(null);
+export const states = writable<HassEntities>({});
+export const connectionStatus = writable<ConnectionStatus>("idle");
+export const connectionError = writable<string | null>(null);
+
+function isIngress(): boolean {
   try {
     return window.location.pathname.includes("/api/hassio_ingress");
   } catch {
@@ -20,7 +24,7 @@ function isIngress() {
   }
 }
 
-function isNabuCasa() {
+function isNabuCasa(): boolean {
   try {
     return window.location.hostname.endsWith(".ui.nabu.casa");
   } catch {
@@ -28,22 +32,22 @@ function isNabuCasa() {
   }
 }
 
-function findHassConnectionPromise() {
-  // Walk up the window hierarchy and look for hassConnection
-  const visited = new Set();
-  let win = window;
+function findHassConnectionPromise():
+  | Promise<{ conn?: Connection } | Connection>
+  | null {
+  const visited = new Set<Window>();
+  let win: Window | null = window;
 
   for (let i = 0; i < 10; i++) {
     if (!win || visited.has(win)) break;
     visited.add(win);
 
     try {
-      if (win.hassConnection) {
+      if ((win as any).hassConnection) {
         console.log("[Zashboard] Found hassConnection on window level", i);
-        return win.hassConnection;
+        return (win as any).hassConnection;
       }
     } catch (err) {
-      // cross-origin; ignore and break
       console.warn("[Zashboard] Error probing window level", i, err);
       break;
     }
@@ -60,8 +64,7 @@ async function getConnectionFromHaFrontend() {
   if (!promise) return null;
 
   const hc = await promise;
-  // In modern HA, hassConnection resolves to { conn, auth }
-  return hc.conn ?? hc;
+  return (hc as { conn?: Connection }).conn ?? (hc as Connection);
 }
 
 export async function initHaConnection() {
@@ -74,9 +77,6 @@ export async function initHaConnection() {
   const remote = isNabuCasa();
 
   try {
-    // ─────────────────────────────────────────────────────────────
-    // PRIMARY PATH: Add-on / Ingress / Nabu Casa
-    // ─────────────────────────────────────────────────────────────
     if (ingress || remote) {
       console.log("[Zashboard] Running in ingress / remote UI mode");
 
@@ -101,17 +101,14 @@ export async function initHaConnection() {
         connectionStatus.set("disconnected");
       });
 
-      return; // IMPORTANT: do not fall through to getAuth()
+      return;
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // DEV/STANDALONE PATH: ONLY outside ingress / Nabu Casa
-    // ─────────────────────────────────────────────────────────────
     console.log("[Zashboard] Not in ingress/remote; using getAuth() dev flow");
 
     let auth;
     try {
-      auth = await getAuth(); // uses current URL as redirectUri
+      auth = await getAuth();
     } catch (err) {
       if (err === ERR_HASS_HOST_REQUIRED) {
         const url = new URL(window.location.href);
@@ -143,8 +140,12 @@ export async function initHaConnection() {
   }
 }
 
-export async function haCallService(domain, service, data) {
-  let currentConn = null;
+export async function haCallService(
+  domain: string,
+  service: string,
+  data: Record<string, unknown>
+) {
+  let currentConn: Connection | null = null;
   const unsub = connection.subscribe((c) => (currentConn = c));
   unsub();
 

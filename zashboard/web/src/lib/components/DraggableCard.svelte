@@ -1,22 +1,24 @@
-<script>
+<script lang="ts">
+  import { createEventDispatcher, onDestroy } from "svelte";
   import { editMode } from "../../stores/dashboard";
 
-  export let id;
+  export let id: string;
   export let x = 50;
   export let y = 50;
   export let width = 220;
   export let height = 120;
-  export let onMove; // (id, x, y) => void
+
+  const dispatch = createEventDispatcher<{ move: { id: string; x: number; y: number } }>();
 
   let dragging = false;
   let offsetX = 0;
   let offsetY = 0;
 
-  function onPointerDown(event) {
+  function onPointerDown(event: PointerEvent) {
     if (!$editMode) return;
 
     dragging = true;
-    const rect = event.currentTarget.getBoundingClientRect();
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
     offsetX = event.clientX - rect.left;
     offsetY = event.clientY - rect.top;
 
@@ -24,21 +26,25 @@
     window.addEventListener("pointerup", onPointerUp);
   }
 
-  function onPointerMove(event) {
+  function onPointerMove(event: PointerEvent) {
     if (!dragging) return;
     const newX = event.clientX - offsetX;
     const newY = event.clientY - offsetY;
 
-    if (onMove) {
-      onMove(id, newX, newY);
-    }
+    dispatch("move", { id, x: newX, y: newY });
   }
 
   function onPointerUp() {
+    if (!dragging) return;
     dragging = false;
     window.removeEventListener("pointermove", onPointerMove);
     window.removeEventListener("pointerup", onPointerUp);
   }
+
+  onDestroy(() => {
+    window.removeEventListener("pointermove", onPointerMove);
+    window.removeEventListener("pointerup", onPointerUp);
+  });
 </script>
 
 <div

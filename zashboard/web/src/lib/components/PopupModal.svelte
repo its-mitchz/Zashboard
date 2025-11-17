@@ -1,22 +1,22 @@
-<script>
+<script lang="ts">
   import { createEventDispatcher, onMount } from "svelte";
 
   export let title = "";
 
-  const dispatch = createEventDispatcher();
-  let modalRef;
+  const dispatch = createEventDispatcher<{ close: void }>();
+  let modalRef: HTMLDivElement | null = null;
 
   function close() {
     dispatch("close");
   }
 
-  function onOverlayClick(event) {
+  function onOverlayClick(event: PointerEvent) {
     if (event.target === event.currentTarget) {
       close();
     }
   }
 
-  function onKeyDown(event) {
+  function onKeyDown(event: KeyboardEvent) {
     if (event.key === "Escape") {
       close();
     }
@@ -34,7 +34,7 @@
   });
 </script>
 
-<div class="overlay" on:click={onOverlayClick}>
+<div class="overlay" role="presentation" on:pointerdown={onOverlayClick}>
   <div class="modal" bind:this={modalRef} role="dialog" aria-modal="true" aria-label={title}>
     <header class="modal-header">
       <div class="title-block">

@@ -2,4 +2,4 @@
 set -e
 
 echo "Starting Svelte Lights Dashboard (websocket, auto auth)..."
-node /app/server.js
+node /app/dist/server.js
