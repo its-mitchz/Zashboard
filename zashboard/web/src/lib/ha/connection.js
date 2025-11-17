@@ -1,10 +1,10 @@
 import { writable } from "svelte/store";
 import {
-  getAuth,
   createConnection,
   subscribeEntities,
   callService,
-  ERR_HASS_HOST_REQUIRED
+  ERR_HASS_HOST_REQUIRED,
+  getAuth
 } from "home-assistant-js-websocket";
 
 export const connection = writable(null);
@@ -12,24 +12,34 @@ export const states = writable({});
 export const connectionStatus = writable("idle");
 export const connectionError = writable(null);
 
-async function getConnectionFromHaParent() {
-  // When running inside Home Assistant (panel / ingress), the main UI
-  // exposes a hassConnection promise we can reuse so we don't trigger
-  // a new auth redirect.
+function inHomeAssistantIframe() {
   try {
-    // Try parent first (iframe inside HA)
-    if (window.parent && window.parent !== window && window.parent.hassConnection) {
-      const parentConn = await window.parent.hassConnection;
-      return parentConn.conn ?? parentConn;
+    return window.parent && window.parent !== window;
+  } catch {
+    return false;
+  }
+}
+
+async function getConnectionFromHa() {
+  // Try to reuse Home Assistant's existing connection.
+  // This is what we want for an add-on / panel.
+  try {
+    // If we're running in an ingress/panel iframe,
+    // the parent should have hassConnection.
+    if (inHomeAssistantIframe() && window.parent.hassConnection) {
+      console.log("[Zashboard] Using parent.hassConnection");
+      const hc = await window.parent.hassConnection;
+      return hc.conn ?? hc;
     }
 
-    // Fallback: maybe we're embedded directly, not in an iframe
+    // Fallback: maybe the HA frontend injected hassConnection on window
     if (window.hassConnection) {
+      console.log("[Zashboard] Using window.hassConnection");
       const hc = await window.hassConnection;
       return hc.conn ?? hc;
     }
   } catch (err) {
-    console.warn("Failed to reuse hassConnection from parent:", err);
+    console.warn("[Zashboard] Failed to reuse hassConnection:", err);
   }
 
   return null;
@@ -42,47 +52,56 @@ export async function initHaConnection() {
   connectionError.set(null);
 
   try {
-    // 1) Prefer using the existing HA connection (no redirects at all)
-    let conn = await getConnectionFromHaParent();
+    // ----- PRIMARY PATH: running as HA add-on / panel -----
+    const reuseConn = await getConnectionFromHa();
+    if (reuseConn) {
+      connection.set(reuseConn);
+      connectionStatus.set("connected");
 
-    // 2) If that didn’t work (e.g. running dev mode via `npm run dev`),
-    //    fall back to the standard home-assistant-js-websocket auth.
-    if (!conn) {
-      let auth;
-      try {
-        // This uses the current URL as client_id/redirect_uri
-        auth = await getAuth();
-      } catch (err) {
-        if (err === ERR_HASS_HOST_REQUIRED) {
-          // When hassUrl isn’t known, derive it from the current origin.
-          const url = new URL(window.location.href);
-          const hassUrl = `${url.protocol}//${url.host}`;
-          auth = await getAuth({ hassUrl });
-        } else {
-          console.error("getAuth error", err);
-          connectionStatus.set("error");
-          connectionError.set("Failed to get Home Assistant auth");
-          return;
-        }
-      }
+      subscribeEntities(reuseConn, (entities) => {
+        states.set(entities || {});
+      });
 
-      conn = await createConnection({ auth });
+      reuseConn.addEventListener?.("disconnected", () => {
+        connectionStatus.set("disconnected");
+      });
+
+      return; // IMPORTANT: do not fall through to getAuth()
     }
 
-    connection.set(conn);
+    // ----- DEV/STANDALONE PATH: only used for npm run dev -----
+    console.log("[Zashboard] No hassConnection found; using getAuth() dev flow");
+
+    let auth;
+    try {
+      auth = await getAuth(); // uses current URL
+    } catch (err) {
+      if (err === ERR_HASS_HOST_REQUIRED) {
+        // derive hassUrl from current origin
+        const url = new URL(window.location.href);
+        const hassUrl = `${url.protocol}//${url.host}`;
+        auth = await getAuth({ hassUrl });
+      } else {
+        console.error("[Zashboard] getAuth error", err);
+        connectionStatus.set("error");
+        connectionError.set("Failed to get Home Assistant auth");
+        return;
+      }
+    }
+
+    const devConn = await createConnection({ auth });
+    connection.set(devConn);
     connectionStatus.set("connected");
 
-    // Keep entities in a Svelte store
-    subscribeEntities(conn, (entities) => {
+    subscribeEntities(devConn, (entities) => {
       states.set(entities || {});
     });
 
-    // Optional: track disconnect
-    conn.addEventListener?.("disconnected", () => {
+    devConn.addEventListener?.("disconnected", () => {
       connectionStatus.set("disconnected");
     });
   } catch (err) {
-    console.error("Failed to initialize HA websocket", err);
+    console.error("[Zashboard] Failed to initialize HA websocket", err);
     connectionStatus.set("error");
     connectionError.set("Failed to connect to Home Assistant websocket");
   }
@@ -94,7 +113,7 @@ export async function haCallService(domain, service, data) {
   unsub();
 
   if (!currentConn) {
-    console.warn("No HA connection yet, cannot call service", domain, service);
+    console.warn("[Zashboard] No HA connection yet, cannot call service", domain, service);
     return;
   }
 
